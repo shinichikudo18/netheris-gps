@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -44,6 +43,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import org.maplibre.android.MapLibre
+import org.maplibre.android.annotations.Marker
+import org.maplibre.android.annotations.MarkerOptions
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapLibreMap
@@ -67,17 +68,56 @@ private val NetherisColors = darkColorScheme(
     onSurface = Color(0xFFEAF7FF)
 )
 
-// OpenFreeMap: full street map based on OpenStreetMap, no API key required.
 private const val MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty"
+private const val PREFS_NAME = "netheris_gps"
+private const val HOME_LAT = "home_lat"
+private const val HOME_LON = "home_lon"
 private val Santiago = LatLng(-33.4489, -70.6693)
 
 @Composable
 fun NetherisGpsApp() {
     val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
+
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
     var status by remember { mutableStateOf("Cargando mapa…") }
+    var lastLocation by remember { mutableStateOf<LatLng?>(null) }
+    var locationMarker by remember { mutableStateOf<Marker?>(null) }
+    var homeMarker by remember { mutableStateOf<Marker?>(null) }
 
-    fun centerOnLocation() {
+    fun showLocation(latLng: LatLng) {
+        val readyMap = map ?: return
+        locationMarker?.let { readyMap.removeMarker(it) }
+        locationMarker = readyMap.addMarker(
+            MarkerOptions()
+                .position(latLng)
+                .title("Mi ubicación")
+        )
+        readyMap.cameraPosition = CameraPosition.Builder()
+            .target(latLng)
+            .zoom(16.5)
+            .build()
+        lastLocation = latLng
+        status = "Ubicación encontrada"
+    }
+
+    fun showHome(latLng: LatLng, moveCamera: Boolean = true) {
+        val readyMap = map ?: return
+        homeMarker?.let { readyMap.removeMarker(it) }
+        homeMarker = readyMap.addMarker(
+            MarkerOptions()
+                .position(latLng)
+                .title("Casa · Netheris")
+        )
+        if (moveCamera) {
+            readyMap.cameraPosition = CameraPosition.Builder()
+                .target(latLng)
+                .zoom(16.5)
+                .build()
+        }
+    }
+
+    fun requestLocation(onResult: (LatLng?) -> Unit = {}) {
         val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
         val hasFine = ContextCompat.checkSelfPermission(
             context,
@@ -90,18 +130,18 @@ fun NetherisGpsApp() {
 
         if (!hasFine && !hasCoarse) {
             status = "Necesito permiso de ubicación"
+            onResult(null)
             return
         }
 
-        val moveCamera: (Location?) -> Unit = { location ->
+        val handleLocation: (Location?) -> Unit = { location ->
             if (location != null) {
-                map?.cameraPosition = CameraPosition.Builder()
-                    .target(LatLng(location.latitude, location.longitude))
-                    .zoom(16.0)
-                    .build()
-                status = "Ubicación encontrada"
+                val latLng = LatLng(location.latitude, location.longitude)
+                showLocation(latLng)
+                onResult(latLng)
             } else {
                 status = "No pude obtener una ubicación todavía"
+                onResult(null)
             }
         }
 
@@ -115,6 +155,7 @@ fun NetherisGpsApp() {
 
                 if (provider == null) {
                     status = "Activa la ubicación del teléfono"
+                    onResult(null)
                     return
                 }
 
@@ -123,15 +164,16 @@ fun NetherisGpsApp() {
                     provider,
                     CancellationSignal(),
                     ContextCompat.getMainExecutor(context),
-                    moveCamera
+                    handleLocation
                 )
             } else {
                 val gps = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
                 val network = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-                moveCamera(gps ?: network)
+                handleLocation(gps ?: network)
             }
         } catch (_: SecurityException) {
             status = "No tengo permiso para acceder al GPS"
+            onResult(null)
         }
     }
 
@@ -140,7 +182,28 @@ fun NetherisGpsApp() {
     ) { permissions ->
         val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
             permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-        if (granted) centerOnLocation() else status = "Permiso de ubicación rechazado"
+        if (granted) requestLocation() else status = "Permiso de ubicación rechazado"
+    }
+
+    fun ensureLocationPermission() {
+        val granted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (granted) {
+            requestLocation()
+        } else {
+            permissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
     }
 
     MaterialTheme(colorScheme = NetherisColors) {
@@ -151,7 +214,7 @@ fun NetherisGpsApp() {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(12.dp)
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
                 Text(
                     text = "NETHERIS GPS",
@@ -160,61 +223,106 @@ fun NetherisGpsApp() {
                     color = MaterialTheme.colorScheme.primary
                 )
                 Text(
-                    text = "V1.0.1 · Santiago · $status",
+                    text = "V1.1 · $status",
                     color = Color(0xFF9EB8C8),
                     fontSize = 13.sp
                 )
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 420.dp, max = 760.dp)
+                        .height(470.dp)
                 ) {
                     NetherisMap(
                         modifier = Modifier.fillMaxSize(),
                         onMapReady = { readyMap ->
                             map = readyMap
                             status = "Mapa listo"
+
+                            if (prefs.contains(HOME_LAT) && prefs.contains(HOME_LON)) {
+                                val home = LatLng(
+                                    prefs.getLong(HOME_LAT, 0L).let(Double::fromBits),
+                                    prefs.getLong(HOME_LON, 0L).let(Double::fromBits)
+                                )
+                                showHome(home, moveCamera = false)
+                            }
                         }
                     )
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
-                        onClick = {
-                            val hasPermission = ContextCompat.checkSelfPermission(
-                                context,
-                                Manifest.permission.ACCESS_FINE_LOCATION
-                            ) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(
-                                context,
-                                Manifest.permission.ACCESS_COARSE_LOCATION
-                            ) == PackageManager.PERMISSION_GRANTED
-
-                            if (hasPermission) {
-                                centerOnLocation()
-                            } else {
-                                permissionLauncher.launch(
-                                    arrayOf(
-                                        Manifest.permission.ACCESS_FINE_LOCATION,
-                                        Manifest.permission.ACCESS_COARSE_LOCATION
-                                    )
-                                )
-                            }
-                        },
+                        onClick = { ensureLocationPermission() },
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary,
                             contentColor = MaterialTheme.colorScheme.onPrimary
                         )
                     ) {
-                        Text("Mi ubicación")
+                        Text("📍 Mi ubicación")
+                    }
+
+                    Button(
+                        onClick = {
+                            val save: (LatLng) -> Unit = { point ->
+                                prefs.edit()
+                                    .putLong(HOME_LAT, point.latitude.toBits())
+                                    .putLong(HOME_LON, point.longitude.toBits())
+                                    .apply()
+                                showHome(point)
+                                status = "Casa guardada"
+                            }
+
+                            val known = lastLocation
+                            if (known != null) {
+                                save(known)
+                            } else {
+                                requestLocation { point -> point?.let(save) }
+                            }
+                        },
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF24384A),
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text("🏠 Guardar casa")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            if (prefs.contains(HOME_LAT) && prefs.contains(HOME_LON)) {
+                                val home = LatLng(
+                                    prefs.getLong(HOME_LAT, 0L).let(Double::fromBits),
+                                    prefs.getLong(HOME_LON, 0L).let(Double::fromBits)
+                                )
+                                showHome(home)
+                                status = "Casa"
+                            } else {
+                                status = "Primero guarda Casa desde tu ubicación"
+                            }
+                        },
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondary,
+                            contentColor = Color(0xFF0A0717)
+                        )
+                    ) {
+                        Text("🏡 Casa")
                     }
 
                     Button(
@@ -227,8 +335,8 @@ fun NetherisGpsApp() {
                         },
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.secondary,
-                            contentColor = Color(0xFF0A0717)
+                            containerColor = Color(0xFF24384A),
+                            contentColor = Color.White
                         )
                     ) {
                         Text("Santiago")
