@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 main = Path('app/src/main/java/cl/netheris/gps/MainActivity.kt')
 s = main.read_text()
@@ -10,12 +11,14 @@ if old_search not in s:
     raise SystemExit('global search anchor not found')
 s = s.replace(old_search, new_search, 1)
 
-# Network resilience: retry once for transient mobile-data failures before surfacing an error.
-old_http = '''private fun httpGet(url: String): String {\n    val connection = URL(url).openConnection() as HttpURLConnection\n    return try {\n        connection.requestMethod = "GET"\n        connection.connectTimeout = 10000\n        connection.readTimeout = 15000\n        connection.setRequestProperty("User-Agent", "NetherisGPS/1.8 Android")\n        connection.setRequestProperty("Accept", "application/json")\n        val code = connection.responseCode\n        if (code !in 200..299) throw IllegalStateException("HTTP $code")\n        connection.inputStream.bufferedReader().use { it.readText() }\n    } finally {\n        connection.disconnect()\n    }\n}\n'''
-new_http = '''private fun httpGet(url: String): String {\n    var lastError: Exception? = null\n    repeat(2) { attempt ->\n        val connection = URL(url).openConnection() as HttpURLConnection\n        try {\n            connection.requestMethod = "GET"\n            connection.connectTimeout = 10000\n            connection.readTimeout = 15000\n            connection.setRequestProperty("User-Agent", "NetherisGPS/14.0 Android")\n            connection.setRequestProperty("Accept", "application/json")\n            connection.setRequestProperty("Accept-Language", "es")\n            val code = connection.responseCode\n            if (code !in 200..299) throw IllegalStateException("HTTP $code")\n            return connection.inputStream.bufferedReader().use { it.readText() }\n        } catch (e: Exception) {\n            lastError = e\n            if (attempt == 0) Thread.sleep(450L)\n        } finally {\n            connection.disconnect()\n        }\n    }\n    throw lastError ?: IllegalStateException("Error de red")\n}\n'''
-if old_http not in s:
-    raise SystemExit('httpGet anchor not found')
-s = s.replace(old_http, new_http, 1)
+# Network resilience: replace the complete helper regardless of which previous version
+# changed its User-Agent string.
+new_http = '''private fun httpGet(url: String): String {\n    var lastError: Exception? = null\n    repeat(2) { attempt ->\n        val connection = URL(url).openConnection() as HttpURLConnection\n        try {\n            connection.requestMethod = "GET"\n            connection.connectTimeout = 10000\n            connection.readTimeout = 15000\n            connection.setRequestProperty("User-Agent", "NetherisGPS/14.0 Android")\n            connection.setRequestProperty("Accept", "application/json")\n            connection.setRequestProperty("Accept-Language", "es")\n            val code = connection.responseCode\n            if (code !in 200..299) throw IllegalStateException("HTTP $code")\n            return connection.inputStream.bufferedReader().use { it.readText() }\n        } catch (e: Exception) {\n            lastError = e\n            if (attempt == 0) Thread.sleep(450L)\n        } finally {\n            connection.disconnect()\n        }\n    }\n    throw lastError ?: IllegalStateException("Error de red")\n}\n\n'''
+pattern = r'private fun httpGet\(url: String\): String \{.*?\n\}\n\n(?=private fun searchPlaces)'
+s2, count = re.subn(pattern, new_http, s, count=1, flags=re.S)
+if count != 1:
+    raise SystemExit('httpGet function not found')
+s = s2
 
 # Keep a longer travel history without changing the existing JSON format.
 s = s.replace('existing.take(4).forEach {', 'existing.take(8).forEach {', 1)
