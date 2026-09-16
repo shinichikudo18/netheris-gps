@@ -12,8 +12,8 @@ android {
         applicationId = "cl.netheris.gps"
         minSdk = 26
         targetSdk = 35
-        versionCode = 61
-        versionName = "6.0.1"
+        versionCode = 80
+        versionName = "8.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
