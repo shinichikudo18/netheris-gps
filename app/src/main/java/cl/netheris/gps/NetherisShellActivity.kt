@@ -101,65 +101,67 @@ private fun BackgroundNavigationBridge() {
         )
     }
 
-    if (snapshot.active) {
-        Surface(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            shape = RoundedCornerShape(14.dp),
-            color = Color(0xEE071B2B),
-            shadowElevation = 8.dp
-        ) {
-            Column(modifier = Modifier.padding(10.dp)) {
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "◈ NETHERIS NAV · BG",
-                            color = Color(0xFF6FE7FF),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = snapshot.destination.ifBlank { "Destino" },
-                            color = Color.White,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            fontSize = 13.sp
-                        )
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (snapshot.active) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                shape = RoundedCornerShape(14.dp),
+                color = Color(0xEE071B2B),
+                shadowElevation = 8.dp
+            ) {
+                Column(modifier = Modifier.padding(10.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "◈ NETHERIS NAV · BG",
+                                color = Color(0xFF6FE7FF),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = snapshot.destination.ifBlank { "Destino" },
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                fontSize = 13.sp
+                            )
+                        }
+                        Button(
+                            onClick = { stopBackground() },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5D2942), contentColor = Color.White)
+                        ) { Text("⏹") }
                     }
-                    Button(
-                        onClick = { stopBackground() },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5D2942), contentColor = Color.White)
-                    ) { Text("⏹") }
-                }
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = snapshot.instruction.ifBlank { "Esperando posición GPS…" },
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                val stats = listOf(snapshot.nextDistance, snapshot.remaining, snapshot.eta, snapshot.speed)
-                    .filter { it.isNotBlank() }
-                    .joinToString("  ·  ")
-                if (stats.isNotBlank()) {
-                    Text(stats, color = Color(0xFF9EDCF2), fontSize = 12.sp)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = snapshot.instruction.ifBlank { "Esperando posición GPS…" },
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    val stats = listOf(snapshot.nextDistance, snapshot.remaining, snapshot.eta, snapshot.speed)
+                        .filter { it.isNotBlank() }
+                        .joinToString("  ·  ")
+                    if (stats.isNotBlank()) {
+                        Text(stats, color = Color(0xFF9EDCF2), fontSize = 12.sp)
+                    }
                 }
             }
-        }
-    } else if (recent != null) {
-        Button(
-            onClick = { startBackground() },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF173247), contentColor = Color(0xFF6FE7FF)),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Text("◈ BG", fontWeight = FontWeight.Bold)
+        } else if (recent != null) {
+            Button(
+                onClick = { startBackground() },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF173247), contentColor = Color(0xFF6FE7FF)),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Text("◈ BG", fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
