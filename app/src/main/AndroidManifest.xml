@@ -26,13 +26,17 @@
             android:value="1" />
 
         <activity
-            android:name=".MainActivity"
+            android:name=".NetherisShellActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="false" />
 
         <service
             android:name=".nav.NavigationForegroundService"
