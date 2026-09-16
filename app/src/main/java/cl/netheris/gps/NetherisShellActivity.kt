@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import cl.netheris.gps.core.NavStateStore
 import cl.netheris.gps.nav.NavigationForegroundService
+import cl.netheris.gps.ui.KatherineAvatar
 import org.json.JSONArray
 import org.maplibre.android.MapLibre
 
@@ -81,28 +82,34 @@ class NetherisShellActivity : ComponentActivity() {
 
 @Composable
 private fun NetherisHeader() {
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 7.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("◇", color = NetherisCyan, fontSize = 24.sp, fontWeight = FontWeight.Black)
-                Column(modifier = Modifier.padding(start = 8.dp)) {
-                    Text("NETHERIS", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Black)
-                    Text("NAVIGATION CORE · V5.0", color = NetherisSoft, fontSize = 9.sp, letterSpacing = 1.sp)
+                KatherineAvatar(size = 46.dp)
+                Column(modifier = Modifier.padding(start = 9.dp)) {
+                    Text("KATHERINE", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Black)
+                    Text("NETHERIS NAVIGATION AI · V6.0", color = NetherisSoft, fontSize = 9.sp, letterSpacing = 0.9.sp)
                 }
             }
             Surface(
                 shape = RoundedCornerShape(20.dp),
                 color = Color(0x331DA7C5),
-                modifier = Modifier.border(1.dp, Color(0x555FE7FF), RoundedCornerShape(20.dp))
+                modifier = Modifier.border(1.dp, Color(0x665FE7FF), RoundedCornerShape(20.dp))
             ) {
-                Text("ONLINE", color = NetherisCyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp))
+                Column(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    horizontalAlignment = Alignment.End
+                ) {
+                    Text("ONLINE", color = NetherisCyan, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    Text("NAV CORE", color = Color(0xFF7894A7), fontSize = 7.sp, letterSpacing = 0.7.sp)
+                }
             }
         }
-        Spacer(Modifier.height(5.dp))
+        Spacer(Modifier.height(6.dp))
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -169,44 +176,37 @@ private fun NavigationSessionCard() {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 10.dp, vertical = 4.dp)
-                    .border(1.dp, Color(0x6648DFF5), RoundedCornerShape(18.dp)),
+                    .border(1.dp, Color(0x7748DFF5), RoundedCornerShape(18.dp)),
                 shape = RoundedCornerShape(18.dp),
                 color = NetherisPanel,
                 shadowElevation = 5.dp
             ) {
-                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("◇ SESIÓN DE NAVEGACIÓN", color = NetherisCyan, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 0.8.sp)
-                            Text(
-                                snapshot.instruction.ifBlank { snapshot.destination.ifBlank { "Recuperando sesión…" } },
-                                color = Color.White,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        Button(
-                            onClick = { stopBackground() },
-                            shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF321D2A), contentColor = Color(0xFFFFB7D0))
-                        ) { Text("DETENER", fontSize = 9.sp, fontWeight = FontWeight.Bold) }
-                    }
-                    val stats = listOf(snapshot.nextDistance, snapshot.remaining, snapshot.eta, snapshot.speed).filter { it.isNotBlank() }
-                    if (stats.isNotEmpty()) {
-                        Spacer(Modifier.height(5.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            stats.forEachIndexed { index, value ->
-                                Text(
-                                    value,
-                                    color = if (index == 0) NetherisCyan else Color(0xFFB9CDE0),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
+                Row(
+                    modifier = Modifier.padding(horizontal = 11.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    KatherineAvatar(size = 38.dp)
+                    Column(modifier = Modifier.padding(start = 9.dp).weight(1f)) {
+                        Text("KATHERINE · GUÍA ACTIVA", color = NetherisCyan, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = 0.8.sp)
+                        Text(
+                            snapshot.instruction.ifBlank { snapshot.destination.ifBlank { "Recuperando sesión…" } },
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        val stats = listOf(snapshot.nextDistance, snapshot.remaining, snapshot.eta, snapshot.speed).filter { it.isNotBlank() }
+                        if (stats.isNotEmpty()) {
+                            Spacer(Modifier.height(3.dp))
+                            Text(stats.joinToString("  ·  "), color = Color(0xFFA9CADC), fontSize = 10.sp)
                         }
                     }
+                    Button(
+                        onClick = { stopBackground() },
+                        shape = RoundedCornerShape(13.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF321D2A), contentColor = Color(0xFFFFB7D0))
+                    ) { Text("■", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
                 }
             }
         }
@@ -217,18 +217,19 @@ private fun NavigationSessionCard() {
                 color = Color(0xCC091520)
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                    modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("ÚLTIMA SESIÓN", color = NetherisSoft, fontSize = 9.sp, letterSpacing = 0.8.sp)
-                        Text(snapshot.destination.substringBefore(","), color = Color.White, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    KatherineAvatar(size = 30.dp)
+                    Column(modifier = Modifier.padding(start = 8.dp).weight(1f)) {
+                        Text("KATHERINE · ÚLTIMA SESIÓN", color = NetherisSoft, fontSize = 8.sp, letterSpacing = 0.7.sp)
+                        Text(snapshot.destination.substringBefore(","), color = Color.White, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     Button(
                         onClick = { resumeBackground() },
                         shape = RoundedCornerShape(13.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF123B4C), contentColor = NetherisCyan)
-                    ) { Text("REANUDAR", fontSize = 9.sp, fontWeight = FontWeight.Bold) }
+                    ) { Text("REANUDAR", fontSize = 8.sp, fontWeight = FontWeight.Bold) }
                 }
             }
         }
@@ -239,22 +240,25 @@ private fun NavigationSessionCard() {
                 color = Color(0xB3091520)
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    modifier = Modifier.padding(horizontal = 11.dp, vertical = 5.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        "◇ ${recent?.label?.substringBefore(",")?.take(32)}",
-                        color = NetherisSoft,
-                        fontSize = 11.sp,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    KatherineAvatar(size = 28.dp)
+                    Column(modifier = Modifier.padding(start = 8.dp).weight(1f)) {
+                        Text("DESTINO RECIENTE", color = Color(0xFF6B879A), fontSize = 8.sp, letterSpacing = 0.6.sp)
+                        Text(
+                            recent?.label?.substringBefore(",")?.take(34) ?: "Destino",
+                            color = NetherisSoft,
+                            fontSize = 10.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                     Button(
                         onClick = { startBackground() },
                         shape = RoundedCornerShape(13.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF162A3B), contentColor = NetherisCyan)
-                    ) { Text("INICIAR", fontSize = 9.sp, fontWeight = FontWeight.Bold) }
+                    ) { Text("INICIAR", fontSize = 8.sp, fontWeight = FontWeight.Bold) }
                 }
             }
         }
