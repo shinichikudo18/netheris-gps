@@ -217,7 +217,7 @@ fun NetherisGpsApp() {
         routePolyline = readyMap.addPolyline(
             PolylineOptions()
                 .addAll(result.points)
-                .color("#30D5FF")
+                .color(0xFF30D5FF.toInt())
                 .width(6f)
         )
 
