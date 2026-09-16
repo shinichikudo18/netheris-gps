@@ -67,6 +67,9 @@ jobs:
       - name: Apply v10.1 nav sync and compact search
         run: python3 scripts/apply_v10_1_nav_sync_compact_search.py
 
+      - name: Apply v10.1 compile fix
+        run: python3 scripts/apply_v10_1_1_forward_ref_fix.py
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
