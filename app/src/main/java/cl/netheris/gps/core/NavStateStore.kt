@@ -10,6 +10,8 @@ object NavStateStore {
     data class Snapshot(
         val active: Boolean,
         val destination: String,
+        val destinationLat: Double?,
+        val destinationLon: Double?,
         val instruction: String,
         val nextDistance: String,
         val remaining: String,
@@ -51,9 +53,13 @@ object NavStateStore {
 
     fun snapshot(context: Context): Snapshot {
         val p = prefs(context)
+        val hasLat = p.contains("destination_lat")
+        val hasLon = p.contains("destination_lon")
         return Snapshot(
             active = p.getBoolean("active", false),
             destination = p.getString("destination", "") ?: "",
+            destinationLat = if (hasLat) p.getLong("destination_lat", 0L).let(Double::fromBits) else null,
+            destinationLon = if (hasLon) p.getLong("destination_lon", 0L).let(Double::fromBits) else null,
             instruction = p.getString("instruction", "") ?: "",
             nextDistance = p.getString("next_distance", "") ?: "",
             remaining = p.getString("remaining", "") ?: "",
