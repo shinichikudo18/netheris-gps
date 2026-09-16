@@ -89,7 +89,7 @@ private class NetherisHomeScreen(carContext: CarContext) : Screen(carContext) {
         } else {
             pane.addRow(
                 Row.Builder()
-                    .setTitle("Netheris GPS v2.5")
+                    .setTitle("Netheris GPS v3.0")
                     .addText("Selecciona un destino para iniciar navegación")
                     .build()
             )
@@ -146,7 +146,7 @@ private class NetherisHomeScreen(carContext: CarContext) : Screen(carContext) {
         )
 
         return PaneTemplate.Builder(pane.build())
-            .setTitle("Netheris GPS")
+            .setTitle("Netheris GPS v3.0")
             .setHeaderAction(Action.APP_ICON)
             .build()
     }
