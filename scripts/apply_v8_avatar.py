@@ -1,7 +1,7 @@
 from pathlib import Path
 import base64
 
-b64 = Path('scripts/katherine_avatar_small.b64').read_text().strip()
+b64 = Path('scripts/katherine_avatar_v8.b64').read_text().strip()
 raw = base64.b64decode(b64)
 res = Path('app/src/main/res/drawable')
 res.mkdir(parents=True, exist_ok=True)
@@ -13,6 +13,7 @@ kt.write_text('''package cl.netheris.gps.ui
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
