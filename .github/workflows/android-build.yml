@@ -64,6 +64,9 @@ jobs:
       - name: Apply v10 import fix
         run: python3 scripts/apply_v10_0_1_import_fix.py
 
+      - name: Apply v10.1 nav sync and compact search
+        run: python3 scripts/apply_v10_1_nav_sync_compact_search.py
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -75,6 +78,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: netheris-gps-v10.0-debug
+          name: netheris-gps-v10.1-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
