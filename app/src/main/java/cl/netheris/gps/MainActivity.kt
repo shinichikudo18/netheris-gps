@@ -65,7 +65,10 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
+import kotlin.math.max
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -96,7 +99,8 @@ private data class SearchResult(val point: LatLng, val label: String)
 private data class RouteStep(
     val instruction: String,
     val distanceMeters: Double,
-    val point: LatLng
+    val point: LatLng,
+    val routeIndex: Int
 )
 private data class RouteResult(
     val points: List<LatLng>,
@@ -111,7 +115,7 @@ private fun httpGet(url: String): String {
         connection.requestMethod = "GET"
         connection.connectTimeout = 10000
         connection.readTimeout = 15000
-        connection.setRequestProperty("User-Agent", "NetherisGPS/1.4 Android")
+        connection.setRequestProperty("User-Agent", "NetherisGPS/1.5 Android")
         connection.setRequestProperty("Accept", "application/json")
         val code = connection.responseCode
         if (code !in 200..299) throw IllegalStateException("HTTP $code")
@@ -155,6 +159,47 @@ private fun instructionFor(step: JSONObject): String {
     return if (road.isNotBlank() && type != "arrive") "$direction por $road" else direction
 }
 
+private fun distanceMeters(a: LatLng, b: LatLng): Float {
+    val result = FloatArray(1)
+    Location.distanceBetween(a.latitude, a.longitude, b.latitude, b.longitude, result)
+    return result[0]
+}
+
+private fun nearestRouteIndex(point: LatLng, route: List<LatLng>): Int {
+    if (route.isEmpty()) return 0
+    var bestIndex = 0
+    var bestDistance = Float.MAX_VALUE
+    val stride = (route.size / 500).coerceAtLeast(1)
+    var i = 0
+    while (i < route.size) {
+        val d = distanceMeters(point, route[i])
+        if (d < bestDistance) {
+            bestDistance = d
+            bestIndex = i
+        }
+        i += stride
+    }
+    val from = (bestIndex - stride * 2).coerceAtLeast(0)
+    val to = (bestIndex + stride * 2).coerceAtMost(route.lastIndex)
+    for (j in from..to) {
+        val d = distanceMeters(point, route[j])
+        if (d < bestDistance) {
+            bestDistance = d
+            bestIndex = j
+        }
+    }
+    return bestIndex
+}
+
+private fun routeDistance(route: List<LatLng>, fromIndex: Int, toIndex: Int): Float {
+    if (route.size < 2) return 0f
+    val start = fromIndex.coerceIn(0, route.lastIndex)
+    val end = toIndex.coerceIn(start, route.lastIndex)
+    var total = 0f
+    for (i in start until end) total += distanceMeters(route[i], route[i + 1])
+    return total
+}
+
 private fun fetchRoute(origin: LatLng, destination: LatLng): RouteResult? {
     val url = "https://router.project-osrm.org/route/v1/driving/" +
         "${origin.longitude},${origin.latitude};${destination.longitude},${destination.latitude}" +
@@ -180,11 +225,13 @@ private fun fetchRoute(origin: LatLng, destination: LatLng): RouteResult? {
                 val step = rawSteps.getJSONObject(i)
                 val location = step.optJSONObject("maneuver")?.optJSONArray("location")
                 if (location != null && location.length() >= 2) {
+                    val point = LatLng(location.getDouble(1), location.getDouble(0))
                     steps.add(
                         RouteStep(
                             instructionFor(step),
                             step.optDouble("distance", 0.0),
-                            LatLng(location.getDouble(1), location.getDouble(0))
+                            point,
+                            nearestRouteIndex(point, points)
                         )
                     )
                 }
@@ -194,29 +241,28 @@ private fun fetchRoute(origin: LatLng, destination: LatLng): RouteResult? {
     return RouteResult(points, route.getDouble("distance"), route.getDouble("duration"), steps)
 }
 
-private fun distanceMeters(a: LatLng, b: LatLng): Float {
-    val result = FloatArray(1)
-    Location.distanceBetween(a.latitude, a.longitude, b.latitude, b.longitude, result)
-    return result[0]
-}
-
 private fun distanceToRoute(point: LatLng, route: List<LatLng>): Float {
     if (route.isEmpty()) return Float.MAX_VALUE
-    var best = Float.MAX_VALUE
-    val stride = (route.size / 250).coerceAtLeast(1)
-    var i = 0
-    while (i < route.size) {
-        val d = distanceMeters(point, route[i])
-        if (d < best) best = d
-        i += stride
-    }
-    return best
+    val index = nearestRouteIndex(point, route)
+    return distanceMeters(point, route[index])
 }
 
 private fun formatDistance(meters: Float): String = when {
     meters < 100f -> "${meters.toInt().coerceAtLeast(10)} m"
     meters < 1000f -> "${(meters / 10f).toInt() * 10} m"
     else -> String.format(Locale.getDefault(), "%.1f km", meters / 1000f)
+}
+
+private fun bearingBetween(a: LatLng, b: LatLng): Float {
+    val start = Location("start").apply {
+        latitude = a.latitude
+        longitude = a.longitude
+    }
+    val end = Location("end").apply {
+        latitude = b.latitude
+        longitude = b.longitude
+    }
+    return start.bearingTo(end)
 }
 
 @Composable
@@ -232,13 +278,17 @@ fun NetherisGpsApp() {
     var routeInfo by remember { mutableStateOf("") }
     var nextInstruction by remember { mutableStateOf("") }
     var nextDistance by remember { mutableStateOf("") }
+    var remainingInfo by remember { mutableStateOf("") }
+    var speedInfo by remember { mutableStateOf("0 km/h") }
+    var etaInfo by remember { mutableStateOf("--:--") }
     var lastLocation by remember { mutableStateOf<LatLng?>(null) }
     var destination by remember { mutableStateOf<SearchResult?>(null) }
     var activeRoute by remember { mutableStateOf<RouteResult?>(null) }
     var navigationActive by remember { mutableStateOf(false) }
+    var demoActive by remember { mutableStateOf(false) }
     var voiceEnabled by remember { mutableStateOf(true) }
     var currentStepIndex by remember { mutableStateOf(0) }
-    var lastSpokenStep by remember { mutableStateOf(-1) }
+    var lastSpokenFarStep by remember { mutableStateOf(-1) }
     var lastSpokenNearStep by remember { mutableStateOf(-1) }
     var lastRerouteAt by remember { mutableStateOf(0L) }
     var locationMarker by remember { mutableStateOf<Marker?>(null) }
@@ -246,6 +296,7 @@ fun NetherisGpsApp() {
     var destinationMarker by remember { mutableStateOf<Marker?>(null) }
     var routePolyline by remember { mutableStateOf<Polyline?>(null) }
     var trackingListener by remember { mutableStateOf<LocationListener?>(null) }
+    var demoRunnable by remember { mutableStateOf<Runnable?>(null) }
 
     var ttsReady by remember { mutableStateOf(false) }
     val tts = remember {
@@ -263,14 +314,14 @@ fun NetherisGpsApp() {
     fun showLocation(latLng: LatLng, moveCamera: Boolean = true, bearing: Float? = null) {
         val readyMap = map ?: return
         locationMarker?.let { readyMap.removeMarker(it) }
-        locationMarker = readyMap.addMarker(MarkerOptions().position(latLng).title("Mi ubicación"))
+        locationMarker = readyMap.addMarker(MarkerOptions().position(latLng).title(if (demoActive) "Demo" else "Mi ubicación"))
         if (moveCamera) {
-            val builder = CameraPosition.Builder().target(latLng).zoom(if (navigationActive) 17.2 else 16.5)
-            if (navigationActive) {
+            val builder = CameraPosition.Builder().target(latLng).zoom(if (navigationActive || demoActive) 17.2 else 16.5)
+            if (navigationActive || demoActive) {
                 builder.tilt(48.0)
                 if (bearing != null && !bearing.isNaN()) builder.bearing(bearing.toDouble())
             }
-            readyMap.animateCamera(CameraUpdateFactory.newCameraPosition(builder.build()), 450)
+            readyMap.animateCamera(CameraUpdateFactory.newCameraPosition(builder.build()), 350)
         }
         lastLocation = latLng
     }
@@ -290,25 +341,33 @@ fun NetherisGpsApp() {
         readyMap.cameraPosition = CameraPosition.Builder().target(result.point).zoom(16.0).build()
     }
 
-    fun updateManeuver(point: LatLng) {
+    fun updateProgress(point: LatLng, speedKmh: Float) {
         val route = activeRoute ?: return
+        if (route.points.isEmpty()) return
+        val routeIndex = nearestRouteIndex(point, route.points)
+        val remainingMeters = routeDistance(route.points, routeIndex, route.points.lastIndex)
+        val fraction = if (route.distanceMeters > 0.0) (remainingMeters / route.distanceMeters).coerceIn(0.0, 1.0) else 0.0
+        val secondsRemaining = route.durationSeconds * fraction
+        val etaMillis = System.currentTimeMillis() + (secondsRemaining * 1000.0).toLong()
+        val formatter = SimpleDateFormat("HH:mm", Locale.getDefault())
+        etaInfo = formatter.format(Date(etaMillis))
+        remainingInfo = formatDistance(remainingMeters)
+        speedInfo = "${speedKmh.toInt().coerceAtLeast(0)} km/h"
+
         if (route.steps.isEmpty()) return
         var index = currentStepIndex.coerceIn(0, route.steps.lastIndex)
-        var distance = distanceMeters(point, route.steps[index].point)
-        if (distance < 30f && index < route.steps.lastIndex) {
-            index++
-            currentStepIndex = index
-            distance = distanceMeters(point, route.steps[index].point)
-        }
+        while (index < route.steps.lastIndex && route.steps[index].routeIndex <= routeIndex + 2) index++
+        if (index != currentStepIndex) currentStepIndex = index
         val step = route.steps[index]
+        val toManeuver = if (step.routeIndex > routeIndex) routeDistance(route.points, routeIndex, step.routeIndex) else distanceMeters(point, step.point)
         nextInstruction = step.instruction
-        nextDistance = formatDistance(distance)
+        nextDistance = formatDistance(toManeuver)
 
-        if (index != lastSpokenStep && distance < 300f) {
-            speak("En ${formatDistance(distance)}, ${step.instruction.lowercase(Locale.getDefault())}")
-            lastSpokenStep = index
+        if (index != lastSpokenFarStep && toManeuver in 120f..450f) {
+            speak("En ${formatDistance(toManeuver)}, ${step.instruction.lowercase(Locale.getDefault())}")
+            lastSpokenFarStep = index
         }
-        if (distance < 70f && index != lastSpokenNearStep) {
+        if (index != lastSpokenNearStep && toManeuver < 70f) {
             speak(step.instruction)
             lastSpokenNearStep = index
         }
@@ -320,7 +379,7 @@ fun NetherisGpsApp() {
         routePolyline = readyMap.addPolyline(PolylineOptions().addAll(result.points).color(0xFF30D5FF.toInt()).width(7f))
         activeRoute = result
         currentStepIndex = if (result.steps.size > 1) 1 else 0
-        lastSpokenStep = -1
+        lastSpokenFarStep = -1
         lastSpokenNearStep = -1
         if (fitBounds) {
             val boundsBuilder = LatLngBounds.Builder().include(origin).include(dest)
@@ -328,7 +387,10 @@ fun NetherisGpsApp() {
             readyMap.animateCamera(CameraUpdateFactory.newLatLngBounds(boundsBuilder.build(), 80), 800)
         }
         routeInfo = String.format(Locale.getDefault(), "%.1f km · %.0f min", result.distanceMeters / 1000.0, result.durationSeconds / 60.0)
-        lastLocation?.let(::updateManeuver)
+        remainingInfo = String.format(Locale.getDefault(), "%.1f km", result.distanceMeters / 1000.0)
+        val etaMillis = System.currentTimeMillis() + (result.durationSeconds * 1000.0).toLong()
+        etaInfo = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(etaMillis))
+        lastLocation?.let { updateProgress(it, 0f) }
         status = if (navigationActive) "Navegando" else "Ruta calculada"
     }
 
@@ -374,11 +436,21 @@ fun NetherisGpsApp() {
         }
     }
 
+    fun stopNavigation() {
+        trackingListener?.let { try { locationManager.removeUpdates(it) } catch (_: Exception) { } }
+        trackingListener = null
+        demoRunnable?.let { mainHandler.removeCallbacks(it) }
+        demoRunnable = null
+        navigationActive = false
+        demoActive = false
+        status = "Navegación detenida"
+    }
+
     fun recalculateFrom(origin: LatLng, fitBounds: Boolean = false) {
         val dest = destination ?: return
         status = "Recalculando…"
         lastRerouteAt = SystemClock.elapsedRealtime()
-        if (voiceEnabled) speak("Ruta desviada. Recalculando")
+        speak("Ruta desviada. Recalculando")
         Thread {
             try {
                 val route = fetchRoute(origin, dest.point)
@@ -389,13 +461,6 @@ fun NetherisGpsApp() {
                 mainHandler.post { status = "Error recalculando" }
             }
         }.start()
-    }
-
-    fun stopNavigation() {
-        trackingListener?.let { try { locationManager.removeUpdates(it) } catch (_: Exception) { } }
-        trackingListener = null
-        navigationActive = false
-        status = "Navegación detenida"
     }
 
     fun startNavigation() {
@@ -415,15 +480,15 @@ fun NetherisGpsApp() {
         navigationActive = true
         status = "Navegando"
         currentStepIndex = if (route.steps.size > 1) 1 else 0
-        lastSpokenStep = -1
+        lastSpokenFarStep = -1
         lastSpokenNearStep = -1
         speak("Navegación iniciada")
-        lastLocation?.let(::updateManeuver)
 
         val listener = LocationListener { location ->
             val point = LatLng(location.latitude, location.longitude)
+            val speedKmh = if (location.hasSpeed()) location.speed * 3.6f else 0f
             showLocation(point, true, if (location.hasBearing()) location.bearing else null)
-            updateManeuver(point)
+            updateProgress(point, speedKmh)
             val currentRoute = activeRoute
             if (currentRoute != null) {
                 val offRoute = distanceToRoute(point, currentRoute.points)
@@ -435,6 +500,7 @@ fun NetherisGpsApp() {
             if (remaining < 35f) {
                 nextInstruction = "Llegaste al destino 🎉"
                 nextDistance = ""
+                remainingInfo = "0 m"
                 status = "Destino alcanzado"
                 speak("Llegaste al destino")
                 stopNavigation()
@@ -460,9 +526,56 @@ fun NetherisGpsApp() {
         }
     }
 
+    fun startDemo() {
+        val route = activeRoute
+        if (route == null || route.points.size < 2) {
+            status = "Primero calcula una ruta"
+            return
+        }
+        stopNavigation()
+        demoActive = true
+        navigationActive = true
+        status = "DEMO navegando"
+        currentStepIndex = if (route.steps.size > 1) 1 else 0
+        lastSpokenFarStep = -1
+        lastSpokenNearStep = -1
+        speak("Modo demostración iniciado")
+        val stride = max(1, route.points.size / 180)
+        var index = 0
+        lateinit var runner: Runnable
+        runner = Runnable {
+            if (!demoActive || activeRoute == null) return@Runnable
+            val currentRoute = activeRoute ?: return@Runnable
+            if (index >= currentRoute.points.lastIndex) {
+                val end = currentRoute.points.last()
+                showLocation(end, true)
+                remainingInfo = "0 m"
+                nextInstruction = "Llegaste al destino 🎉"
+                nextDistance = ""
+                status = "DEMO finalizada"
+                speak("Llegaste al destino")
+                navigationActive = false
+                demoActive = false
+                return@Runnable
+            }
+            val point = currentRoute.points[index]
+            val nextIndex = (index + stride).coerceAtMost(currentRoute.points.lastIndex)
+            val bearing = bearingBetween(point, currentRoute.points[nextIndex])
+            val demoSpeed = 42f
+            showLocation(point, true, bearing)
+            updateProgress(point, demoSpeed)
+            status = "DEMO navegando"
+            index = nextIndex
+            mainHandler.postDelayed(runner, 700L)
+        }
+        demoRunnable = runner
+        mainHandler.post(runner)
+    }
+
     DisposableEffect(Unit) {
         onDispose {
             trackingListener?.let { try { locationManager.removeUpdates(it) } catch (_: Exception) { } }
+            demoRunnable?.let { mainHandler.removeCallbacks(it) }
             tts.stop()
             tts.shutdown()
         }
@@ -489,6 +602,7 @@ fun NetherisGpsApp() {
         routeInfo = ""
         nextInstruction = ""
         nextDistance = ""
+        remainingInfo = ""
         Thread {
             try {
                 val result = searchPlace(query)
@@ -529,27 +643,31 @@ fun NetherisGpsApp() {
     MaterialTheme(colorScheme = NetherisColors) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Column(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp)) {
-                Text("NETHERIS GPS", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                Text("V1.4 · $status${if (routeInfo.isNotEmpty()) " · $routeInfo" else ""}", color = Color(0xFF9EB8C8), fontSize = 13.sp)
+                Text("NETHERIS GPS", fontSize = 23.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Text("V1.5 · $status", color = Color(0xFF9EB8C8), fontSize = 13.sp)
 
-                if (nextInstruction.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(5.dp))
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
-                        color = Color(0xFF142B3E)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(nextInstruction, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(0.78f))
-                            if (nextDistance.isNotEmpty()) Text(nextDistance, color = MaterialTheme.colorScheme.primary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                if (activeRoute != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), color = Color(0xFF102334)) {
+                        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Column { Text("Restante", color = Color(0xFF8FAABA), fontSize = 11.sp); Text(remainingInfo.ifEmpty { "--" }, color = Color.White, fontWeight = FontWeight.Bold) }
+                            Column { Text("Llegada", color = Color(0xFF8FAABA), fontSize = 11.sp); Text(etaInfo, color = Color.White, fontWeight = FontWeight.Bold) }
+                            Column { Text("Velocidad", color = Color(0xFF8FAABA), fontSize = 11.sp); Text(speedInfo, color = Color.White, fontWeight = FontWeight.Bold) }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(6.dp))
+                if (nextInstruction.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), color = Color(0xFF173247)) {
+                        Row(modifier = Modifier.fillMaxWidth().padding(10.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(nextInstruction, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(0.76f))
+                            Text(nextDistance, color = MaterialTheme.colorScheme.primary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(5.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     OutlinedTextField(
                         value = searchText,
@@ -566,8 +684,8 @@ fun NetherisGpsApp() {
                     ) { Text("Buscar") }
                 }
 
-                Spacer(modifier = Modifier.height(6.dp))
-                Box(modifier = Modifier.fillMaxWidth().height(if (nextInstruction.isNotEmpty()) 270.dp else 325.dp)) {
+                Spacer(modifier = Modifier.height(5.dp))
+                Box(modifier = Modifier.fillMaxWidth().height(if (activeRoute != null) 235.dp else 310.dp)) {
                     NetherisMap(
                         modifier = Modifier.fillMaxSize(),
                         onMapReady = { readyMap ->
@@ -578,52 +696,24 @@ fun NetherisGpsApp() {
                                     LatLng(
                                         prefs.getLong(HOME_LAT, 0L).let(Double::fromBits),
                                         prefs.getLong(HOME_LON, 0L).let(Double::fromBits)
-                                    ),
-                                    false
+                                    ), false
                                 )
                             }
                         }
                     )
                 }
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(5.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Button(
-                        onClick = { ensureLocationPermission() },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)
-                    ) { Text("📍 Ubicación") }
-                    Button(
-                        onClick = { calculateRoute() },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF21C7A8), contentColor = Color(0xFF001A16))
-                    ) { Text("🚗 Ruta") }
-                    Button(
-                        onClick = { if (navigationActive) stopNavigation() else startNavigation() },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = if (navigationActive) Color(0xFF8D3A4A) else Color(0xFF305B8E), contentColor = Color.White)
-                    ) { Text(if (navigationActive) "⏹ Detener" else "▶ Navegar") }
+                    Button(onClick = { ensureLocationPermission() }, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)) { Text("📍 Ubicación") }
+                    Button(onClick = { calculateRoute() }, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF21C7A8), contentColor = Color(0xFF001A16))) { Text("🚗 Ruta") }
+                    Button(onClick = { if (navigationActive && !demoActive) stopNavigation() else startNavigation() }, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = if (navigationActive && !demoActive) Color(0xFF8D3A4A) else Color(0xFF305B8E), contentColor = Color.White)) { Text(if (navigationActive && !demoActive) "⏹ Parar" else "▶ Navegar") }
                 }
 
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Button(
-                        onClick = {
-                            val save: (LatLng) -> Unit = { point ->
-                                prefs.edit().putLong(HOME_LAT, point.latitude.toBits()).putLong(HOME_LON, point.longitude.toBits()).apply()
-                                showHome(point)
-                                status = "Casa guardada"
-                            }
-                            lastLocation?.let(save) ?: requestLocation { point -> point?.let(save) }
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF24384A), contentColor = Color.White)
-                    ) { Text("🏠 Guardar") }
-                    Button(
-                        onClick = { voiceEnabled = !voiceEnabled; if (!voiceEnabled) tts.stop() },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF24384A), contentColor = Color.White)
-                    ) { Text(if (voiceEnabled) "🔊 Voz" else "🔇 Voz") }
+                    Button(onClick = { if (demoActive) stopNavigation() else startDemo() }, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = if (demoActive) Color(0xFF8D3A4A) else Color(0xFF6A4C93), contentColor = Color.White)) { Text(if (demoActive) "⏹ Demo" else "▶ DEMO") }
+                    Button(onClick = { voiceEnabled = !voiceEnabled; if (!voiceEnabled) tts.stop() }, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF24384A), contentColor = Color.White)) { Text(if (voiceEnabled) "🔊 Voz" else "🔇 Voz") }
                     Button(
                         onClick = {
                             stopNavigation()
@@ -636,6 +726,9 @@ fun NetherisGpsApp() {
                             routeInfo = ""
                             nextInstruction = ""
                             nextDistance = ""
+                            remainingInfo = ""
+                            speedInfo = "0 km/h"
+                            etaInfo = "--:--"
                             status = "Ruta limpiada"
                         },
                         shape = RoundedCornerShape(12.dp),
