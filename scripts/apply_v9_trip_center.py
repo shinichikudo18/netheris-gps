@@ -23,7 +23,7 @@ s = s.replace(state_anchor, state_anchor + '    var favorites by remember { muta
 speak_anchor = '    fun speak(text: String) {\n'
 if speak_anchor not in s:
     raise SystemExit('speak anchor not found')
-local_helpers = '''    fun addFavorite(result: SearchResult) {\n        favorites = savePlaceList(prefs, FAVORITES_JSON, result, 8)\n        // Keep legacy single favorite compatible with old UI/markers.\n        prefs.edit()\n            .putLong(FAVORITE_LAT, result.point.latitude.toBits())\n            .putLong(FAVORITE_LON, result.point.longitude.toBits())\n            .putString(FAVORITE_LABEL, result.label.substringBefore(","))\n            .apply()\n        showFavorite(result.point, result.label.substringBefore(","), false)\n        status = "Favorito guardado"\n    }\n\n    fun recordTrip(result: SearchResult) {\n        tripHistory = savePlaceList(prefs, TRIP_HISTORY_JSON, result, 12)\n    }\n\n'''
+local_helpers = '''    fun addFavorite(result: SearchResult) {\n        favorites = savePlaceList(prefs, FAVORITES_JSON, result, 8)\n        // Keep legacy single favorite compatible with old UI/markers.\n        prefs.edit()\n            .putLong(FAVORITE_LAT, result.point.latitude.toBits())\n            .putLong(FAVORITE_LON, result.point.longitude.toBits())\n            .putString(FAVORITE_LABEL, result.label.substringBefore(","))\n            .apply()\n        status = "Favorito guardado"\n    }\n\n    fun recordTrip(result: SearchResult) {\n        tripHistory = savePlaceList(prefs, TRIP_HISTORY_JSON, result, 12)\n    }\n\n'''
 s = s.replace(speak_anchor, local_helpers + speak_anchor)
 
 # Record natural arrivals before reset.
