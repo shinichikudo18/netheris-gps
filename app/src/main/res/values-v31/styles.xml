@@ -3,13 +3,6 @@
     <style name="Theme.NetherisGps" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:windowSplashScreenBackground">@color/netheris_splash_background</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_netheris_foreground</item>
-        <item name="android:postSplashScreenTheme">@style/Theme.NetherisGps.PostSplash</item>
-        <item name="android:navigationBarColor">#07111D</item>
-        <item name="android:statusBarColor">#07111D</item>
-        <item name="android:windowLightStatusBar">false</item>
-    </style>
-
-    <style name="Theme.NetherisGps.PostSplash" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:navigationBarColor">#07111D</item>
         <item name="android:statusBarColor">#07111D</item>
         <item name="android:windowLightStatusBar">false</item>
