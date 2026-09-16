@@ -7,6 +7,10 @@ import android.os.Handler
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -29,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -40,27 +45,70 @@ import cl.netheris.gps.nav.NavigationForegroundService
 import org.json.JSONArray
 import org.maplibre.android.MapLibre
 
+private val NetherisDeep = Color(0xFF050B14)
+private val NetherisPanel = Color(0xEE0A1724)
+private val NetherisCyan = Color(0xFF5FE7FF)
+private val NetherisViolet = Color(0xFF9D7CFF)
+private val NetherisSoft = Color(0xFF9DB4C7)
+
 class NetherisShellActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         MapLibre.getInstance(this)
         setContent {
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color(0xFF08111C), NetherisDeep, Color(0xFF03070D))
+                        )
+                    )
                     .statusBarsPadding()
                     .navigationBarsPadding()
             ) {
-                BackgroundNavigationBar()
-                androidx.compose.foundation.layout.Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                ) {
-                    NetherisGpsApp()
+                Column(modifier = Modifier.fillMaxSize()) {
+                    NetherisHeader()
+                    NavigationSessionCard()
+                    Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                        NetherisGpsApp()
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun NetherisHeader() {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("◇", color = NetherisCyan, fontSize = 24.sp, fontWeight = FontWeight.Black)
+                Column(modifier = Modifier.padding(start = 8.dp)) {
+                    Text("NETHERIS", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Black)
+                    Text("NAVIGATION CORE · V5.0", color = NetherisSoft, fontSize = 9.sp, letterSpacing = 1.sp)
+                }
+            }
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color(0x331DA7C5),
+                modifier = Modifier.border(1.dp, Color(0x555FE7FF), RoundedCornerShape(20.dp))
+            ) {
+                Text("ONLINE", color = NetherisCyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp))
+            }
+        }
+        Spacer(Modifier.height(5.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(Brush.horizontalGradient(listOf(Color.Transparent, NetherisCyan, NetherisViolet, Color.Transparent)))
+        )
     }
 }
 
@@ -72,16 +120,12 @@ private fun latestRecent(context: Context): RecentDestination? {
         val array = JSONArray(prefs.getString("recents_json", "[]") ?: "[]")
         if (array.length() == 0) return@runCatching null
         val o = array.getJSONObject(0)
-        RecentDestination(
-            o.optString("label", "Destino"),
-            o.getDouble("lat"),
-            o.getDouble("lon")
-        )
+        RecentDestination(o.optString("label", "Destino"), o.getDouble("lat"), o.getDouble("lon"))
     }.getOrNull()
 }
 
 @Composable
-private fun BackgroundNavigationBar() {
+private fun NavigationSessionCard() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val handler = remember { Handler(Looper.getMainLooper()) }
     var snapshot by remember { mutableStateOf(NavStateStore.snapshot(context)) }
@@ -108,88 +152,110 @@ private fun BackgroundNavigationBar() {
         ContextCompat.startForegroundService(context, intent)
     }
 
-    fun stopBackground() {
-        context.startService(
-            Intent(context, NavigationForegroundService::class.java)
-                .setAction(NavigationForegroundService.ACTION_STOP)
+    fun resumeBackground() {
+        ContextCompat.startForegroundService(
+            context,
+            Intent(context, NavigationForegroundService::class.java).setAction(NavigationForegroundService.ACTION_RESUME)
         )
     }
 
-    if (snapshot.active) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            shape = RoundedCornerShape(14.dp),
-            color = Color(0xFF0B2234),
-            shadowElevation = 3.dp
-        ) {
-            Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "◈ NETHERIS NAV · ACTIVA",
-                            color = Color(0xFF6FE7FF),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = snapshot.instruction.ifBlank { snapshot.destination.ifBlank { "Esperando GPS…" } },
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    Button(
-                        onClick = { stopBackground() },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF503044),
-                            contentColor = Color.White
-                        )
-                    ) { Text("⏹") }
-                }
+    fun stopBackground() {
+        context.startService(Intent(context, NavigationForegroundService::class.java).setAction(NavigationForegroundService.ACTION_STOP))
+    }
 
-                val stats = listOf(snapshot.nextDistance, snapshot.remaining, snapshot.eta, snapshot.speed)
-                    .filter { it.isNotBlank() }
-                    .joinToString(" · ")
-                if (stats.isNotBlank()) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(stats, color = Color(0xFF9EDCF2), fontSize = 11.sp)
+    when {
+        snapshot.active -> {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                    .border(1.dp, Color(0x6648DFF5), RoundedCornerShape(18.dp)),
+                shape = RoundedCornerShape(18.dp),
+                color = NetherisPanel,
+                shadowElevation = 5.dp
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("◇ SESIÓN DE NAVEGACIÓN", color = NetherisCyan, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 0.8.sp)
+                            Text(
+                                snapshot.instruction.ifBlank { snapshot.destination.ifBlank { "Recuperando sesión…" } },
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Button(
+                            onClick = { stopBackground() },
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF321D2A), contentColor = Color(0xFFFFB7D0))
+                        ) { Text("DETENER", fontSize = 9.sp, fontWeight = FontWeight.Bold) }
+                    }
+                    val stats = listOf(snapshot.nextDistance, snapshot.remaining, snapshot.eta, snapshot.speed).filter { it.isNotBlank() }
+                    if (stats.isNotEmpty()) {
+                        Spacer(Modifier.height(5.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            stats.forEachIndexed { index, value ->
+                                Text(
+                                    value,
+                                    color = if (index == 0) NetherisCyan else Color(0xFFB9CDE0),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
-    } else if (recent != null) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 3.dp),
-            shape = RoundedCornerShape(12.dp),
-            color = Color(0xFF0B1925)
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                verticalAlignment = Alignment.CenterVertically
+        snapshot.destinationLat != null && snapshot.destinationLon != null && snapshot.destination.isNotBlank() -> {
+            Surface(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 3.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xCC091520)
             ) {
-                Text(
-                    text = "◈ BG disponible · ${recent?.label?.substringBefore(",")?.take(26)}",
-                    color = Color(0xFF9EB8C8),
-                    fontSize = 11.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-                Button(
-                    onClick = { startBackground() },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF173247),
-                        contentColor = Color(0xFF6FE7FF)
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("ÚLTIMA SESIÓN", color = NetherisSoft, fontSize = 9.sp, letterSpacing = 0.8.sp)
+                        Text(snapshot.destination.substringBefore(","), color = Color.White, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    Button(
+                        onClick = { resumeBackground() },
+                        shape = RoundedCornerShape(13.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF123B4C), contentColor = NetherisCyan)
+                    ) { Text("REANUDAR", fontSize = 9.sp, fontWeight = FontWeight.Bold) }
+                }
+            }
+        }
+        recent != null -> {
+            Surface(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 3.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xB3091520)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "◇ ${recent?.label?.substringBefore(",")?.take(32)}",
+                        color = NetherisSoft,
+                        fontSize = 11.sp,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
-                ) { Text("Iniciar", fontSize = 11.sp) }
+                    Button(
+                        onClick = { startBackground() },
+                        shape = RoundedCornerShape(13.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF162A3B), contentColor = NetherisCyan)
+                    ) { Text("INICIAR", fontSize = 9.sp, fontWeight = FontWeight.Bold) }
+                }
             }
         }
     }
