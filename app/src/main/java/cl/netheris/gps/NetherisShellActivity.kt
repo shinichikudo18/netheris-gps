@@ -37,10 +37,12 @@ import androidx.core.content.ContextCompat
 import cl.netheris.gps.core.NavStateStore
 import cl.netheris.gps.nav.NavigationForegroundService
 import org.json.JSONArray
+import org.maplibre.android.MapLibre
 
 class NetherisShellActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        MapLibre.getInstance(this)
         setContent {
             Box(modifier = Modifier.fillMaxSize()) {
                 NetherisGpsApp()
