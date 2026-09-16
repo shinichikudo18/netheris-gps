@@ -12,8 +12,14 @@ if 'import androidx.compose.foundation.layout.navigationBarsPadding\n' not in s:
 if 'import androidx.compose.material3.ModalBottomSheet\n' not in s:
     s = s.replace(
         'import androidx.compose.material3.MaterialTheme\n',
-        'import androidx.compose.material3.MaterialTheme\nimport androidx.compose.material3.ModalBottomSheet\n'
+        'import androidx.compose.material3.MaterialTheme\nimport androidx.compose.material3.ExperimentalMaterial3Api\nimport androidx.compose.material3.ModalBottomSheet\n'
     )
+
+# ModalBottomSheet is experimental in the Material3 version used by this project.
+s = s.replace(
+    '@Composable\nfun NetherisGpsApp() {',
+    '@OptIn(ExperimentalMaterial3Api::class)\n@Composable\nfun NetherisGpsApp() {'
+)
 
 # Replace the old inline dock + expandable tools area with an adaptive dock and a true bottom sheet.
 dock_start_marker = '''                Spacer(Modifier.height(7.dp))\n                Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(21.dp), color = Color(0xFF081722)) {\n'''
