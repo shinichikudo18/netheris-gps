@@ -1,9 +1,15 @@
 package cl.netheris.gps.core
 
 import android.content.Context
+import android.os.SystemClock
+import cl.netheris.gps.bridge.NetherisBridge
+import org.json.JSONObject
 
 object NavStateStore {
     private const val PREFS = "netheris_nav_state"
+    private var lastBridgeUpdateAt = 0L
+    private var bridgeWasActive = false
+    private var arrivalSentFor = ""
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -26,10 +32,37 @@ object NavStateStore {
             .putLong("destination_lat", lat.toBits())
             .putLong("destination_lon", lon.toBits())
             .apply()
+        arrivalSentFor = ""
     }
 
     fun setActive(context: Context, active: Boolean) {
-        prefs(context).edit().putBoolean("active", active).putLong("updated_at", System.currentTimeMillis()).apply()
+        val p = prefs(context)
+        val wasActive = p.getBoolean("active", false)
+        p.edit().putBoolean("active", active).putLong("updated_at", System.currentTimeMillis()).apply()
+
+        if (active && !wasActive) {
+            bridgeWasActive = true
+            val snap = snapshot(context)
+            NetherisBridge.emit(
+                context,
+                "navigation_started",
+                JSONObject()
+                    .put("active", true)
+                    .put("destination", snap.destination)
+                    .put("destination_lat", snap.destinationLat)
+                    .put("destination_lon", snap.destinationLon)
+            )
+        } else if (!active && wasActive) {
+            bridgeWasActive = false
+            val snap = snapshot(context)
+            NetherisBridge.emit(
+                context,
+                "navigation_stopped",
+                JSONObject()
+                    .put("active", false)
+                    .put("destination", snap.destination)
+            )
+        }
     }
 
     fun update(
@@ -49,6 +82,45 @@ object NavStateStore {
             .putString("speed", speed)
             .putLong("updated_at", System.currentTimeMillis())
             .apply()
+
+        val snap = snapshot(context)
+        val now = SystemClock.elapsedRealtime()
+        if (!bridgeWasActive) {
+            bridgeWasActive = true
+            NetherisBridge.emit(
+                context,
+                "navigation_started",
+                JSONObject().put("active", true).put("destination", snap.destination)
+            )
+        }
+
+        if (now - lastBridgeUpdateAt >= 15000L) {
+            lastBridgeUpdateAt = now
+            NetherisBridge.emit(
+                context,
+                "navigation_updated",
+                JSONObject()
+                    .put("active", true)
+                    .put("destination", snap.destination)
+                    .put("instruction", instruction)
+                    .put("next_distance", nextDistance)
+                    .put("remaining", remaining)
+                    .put("eta", eta)
+                    .put("speed", speed)
+            )
+        }
+
+        if (instruction.contains("Llegaste", ignoreCase = true) && arrivalSentFor != snap.destination) {
+            arrivalSentFor = snap.destination
+            NetherisBridge.emit(
+                context,
+                "arrived",
+                JSONObject()
+                    .put("active", false)
+                    .put("destination", snap.destination)
+                    .put("eta", eta)
+            )
+        }
     }
 
     fun snapshot(context: Context): Snapshot {
@@ -71,5 +143,7 @@ object NavStateStore {
 
     fun clear(context: Context) {
         prefs(context).edit().clear().apply()
+        bridgeWasActive = false
+        arrivalSentFor = ""
     }
 }
