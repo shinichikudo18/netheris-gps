@@ -19,7 +19,7 @@ s = s.replace(fetch_anchor, fast_func)
 
 # Fresh destination selection = fresh UI/session.
 old_select = '''        destination = result\n        searchResults = emptyList()\n        routeOptions = emptyList()\n        activeRoute = null\n        selectedRouteIndex = 0\n'''
-new_select = '''        stopNavigation()\n        toolsExpanded = false\n        destination = result\n        searchResults = emptyList()\n        routeOptions = emptyList()\n        activeRoute = null\n        routePolyline?.let { readyMap.removePolyline(it) }\n        routePolyline = null\n        nextInstruction = ""\n        nextDistance = ""\n        remainingInfo = ""\n        speedInfo = "0 km/h"\n        etaInfo = "--:--"\n        selectedRouteIndex = 0\n'''
+new_select = '''        toolsExpanded = false\n        destination = result\n        searchResults = emptyList()\n        routeOptions = emptyList()\n        activeRoute = null\n        routePolyline?.let { readyMap.removePolyline(it) }\n        routePolyline = null\n        nextInstruction = ""\n        nextDistance = ""\n        remainingInfo = ""\n        speedInfo = "0 km/h"\n        etaInfo = "--:--"\n        selectedRouteIndex = 0\n'''
 if old_select not in s:
     raise SystemExit('select destination anchor not found')
 s = s.replace(old_select, new_select)
