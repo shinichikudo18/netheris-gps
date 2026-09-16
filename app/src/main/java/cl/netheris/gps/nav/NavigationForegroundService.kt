@@ -16,7 +16,7 @@ import android.os.Looper
 import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import cl.netheris.gps.MainActivity
+import cl.netheris.gps.NetherisShellActivity
 import cl.netheris.gps.R
 import cl.netheris.gps.core.NavStateStore
 import org.json.JSONObject
@@ -31,6 +31,7 @@ class NavigationForegroundService : Service() {
     companion object {
         const val ACTION_START = "cl.netheris.gps.nav.START"
         const val ACTION_STOP = "cl.netheris.gps.nav.STOP"
+        const val ACTION_RESUME = "cl.netheris.gps.nav.RESUME"
         const val EXTRA_LAT = "lat"
         const val EXTRA_LON = "lon"
         const val EXTRA_LABEL = "label"
@@ -66,15 +67,38 @@ class NavigationForegroundService : Service() {
                 val lat = intent.getDoubleExtra(EXTRA_LAT, Double.NaN)
                 val lon = intent.getDoubleExtra(EXTRA_LON, Double.NaN)
                 if (lat.isNaN() || lon.isNaN()) return START_NOT_STICKY
-                destination = P(lat, lon)
-                destinationLabel = intent.getStringExtra(EXTRA_LABEL)?.takeIf { it.isNotBlank() } ?: "Destino"
-                NavStateStore.setDestination(this, destinationLabel, lat, lon)
-                NavStateStore.setActive(this, true)
-                startForeground(NOTIFICATION_ID, buildNotification("Preparando ruta…", destinationLabel))
-                startLocationTracking()
+                startSession(lat, lon, intent.getStringExtra(EXTRA_LABEL))
+            }
+            ACTION_RESUME, null -> {
+                if (!restoreSession()) return START_NOT_STICKY
             }
         }
         return START_STICKY
+    }
+
+    private fun startSession(lat: Double, lon: Double, label: String?) {
+        destination = P(lat, lon)
+        destinationLabel = label?.takeIf { it.isNotBlank() } ?: "Destino"
+        route = null
+        stepIndex = 0
+        NavStateStore.setDestination(this, destinationLabel, lat, lon)
+        NavStateStore.setActive(this, true)
+        startForeground(NOTIFICATION_ID, buildNotification("Preparando ruta…", destinationLabel))
+        startLocationTracking()
+    }
+
+    private fun restoreSession(): Boolean {
+        val state = NavStateStore.snapshot(this)
+        val lat = state.destinationLat
+        val lon = state.destinationLon
+        if (!state.active || lat == null || lon == null) return false
+        destination = P(lat, lon)
+        destinationLabel = state.destination.ifBlank { "Destino" }
+        route = null
+        stepIndex = 0
+        startForeground(NOTIFICATION_ID, buildNotification("Restaurando navegación…", destinationLabel))
+        startLocationTracking()
+        return true
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -97,7 +121,7 @@ class NavigationForegroundService : Service() {
             PendingIntent.getActivity(
                 this,
                 0,
-                Intent(this, MainActivity::class.java),
+                Intent(this, NetherisShellActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
         )
@@ -125,7 +149,6 @@ class NavigationForegroundService : Service() {
             stopNavigation()
             return
         }
-
         listener?.let { runCatching { locationManager.removeUpdates(it) } }
         val l = LocationListener { location -> onLocation(location) }
         listener = l
@@ -198,9 +221,7 @@ class NavigationForegroundService : Service() {
                 if (result != null) {
                     route = result
                     stepIndex = if (result.steps.size > 1) 1 else 0
-                } else {
-                    updateNotification("Sin ruta disponible", destinationLabel)
-                }
+                } else updateNotification("Sin ruta disponible", destinationLabel)
             } catch (_: Exception) {
                 updateNotification("Error calculando ruta", destinationLabel)
             }
@@ -213,7 +234,7 @@ class NavigationForegroundService : Service() {
         val text = try {
             conn.connectTimeout = 10000
             conn.readTimeout = 15000
-            conn.setRequestProperty("User-Agent", "NetherisGPS/3.0 Android")
+            conn.setRequestProperty("User-Agent", "NetherisGPS/5.0 Android")
             if (conn.responseCode !in 200..299) return null
             conn.inputStream.bufferedReader().use { it.readText() }
         } finally { conn.disconnect() }
