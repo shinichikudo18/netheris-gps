@@ -11,8 +11,11 @@
 
     <application
         android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="Netheris GPS"
-        android:supportsRtl="true">
+        android:supportsRtl="true"
+        android:theme="@style/Theme.NetherisGps">
 
         <meta-data
             android:name="com.google.android.gms.car.application"
