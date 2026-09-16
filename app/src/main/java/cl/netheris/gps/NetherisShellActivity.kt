@@ -7,14 +7,16 @@ import android.os.Handler
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -44,9 +46,20 @@ class NetherisShellActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         MapLibre.getInstance(this)
         setContent {
-            Box(modifier = Modifier.fillMaxSize()) {
-                NetherisGpsApp()
-                BackgroundNavigationBridge()
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+            ) {
+                BackgroundNavigationBar()
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                ) {
+                    NetherisGpsApp()
+                }
             }
         }
     }
@@ -69,7 +82,7 @@ private fun latestRecent(context: Context): RecentDestination? {
 }
 
 @Composable
-private fun BackgroundNavigationBridge() {
+private fun BackgroundNavigationBar() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val handler = remember { Handler(Looper.getMainLooper()) }
     var snapshot by remember { mutableStateOf(NavStateStore.snapshot(context)) }
@@ -103,66 +116,81 @@ private fun BackgroundNavigationBridge() {
         )
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        if (snapshot.active) {
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                shape = RoundedCornerShape(14.dp),
-                color = Color(0xEE071B2B),
-                shadowElevation = 8.dp
-            ) {
-                Column(modifier = Modifier.padding(10.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "◈ NETHERIS NAV · BG",
-                                color = Color(0xFF6FE7FF),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = snapshot.destination.ifBlank { "Destino" },
-                                color = Color.White,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                fontSize = 13.sp
-                            )
-                        }
-                        Button(
-                            onClick = { stopBackground() },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5D2942), contentColor = Color.White)
-                        ) { Text("⏹") }
+    if (snapshot.active) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            shape = RoundedCornerShape(14.dp),
+            color = Color(0xFF0B2234),
+            shadowElevation = 3.dp
+        ) {
+            Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "◈ NETHERIS NAV · ACTIVA",
+                            color = Color(0xFF6FE7FF),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = snapshot.instruction.ifBlank { snapshot.destination.ifBlank { "Esperando GPS…" } },
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = snapshot.instruction.ifBlank { "Esperando posición GPS…" },
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    val stats = listOf(snapshot.nextDistance, snapshot.remaining, snapshot.eta, snapshot.speed)
-                        .filter { it.isNotBlank() }
-                        .joinToString("  ·  ")
-                    if (stats.isNotBlank()) {
-                        Text(stats, color = Color(0xFF9EDCF2), fontSize = 12.sp)
-                    }
+                    Button(
+                        onClick = { stopBackground() },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF503044),
+                            contentColor = Color.White
+                        )
+                    ) { Text("⏹") }
+                }
+
+                val stats = listOf(snapshot.nextDistance, snapshot.remaining, snapshot.eta, snapshot.speed)
+                    .filter { it.isNotBlank() }
+                    .joinToString(" · ")
+                if (stats.isNotBlank()) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(stats, color = Color(0xFF9EDCF2), fontSize = 11.sp)
                 }
             }
-        } else if (recent != null) {
-            Button(
-                onClick = { startBackground() },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF173247), contentColor = Color(0xFF6FE7FF)),
-                shape = RoundedCornerShape(16.dp)
+        }
+    } else if (recent != null) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 3.dp),
+            shape = RoundedCornerShape(12.dp),
+            color = Color(0xFF0B1925)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("◈ BG", fontWeight = FontWeight.Bold)
+                Text(
+                    text = "◈ BG disponible · ${recent?.label?.substringBefore(",")?.take(26)}",
+                    color = Color(0xFF9EB8C8),
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Button(
+                    onClick = { startBackground() },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF173247),
+                        contentColor = Color(0xFF6FE7FF)
+                    )
+                ) { Text("Iniciar", fontSize = 11.sp) }
             }
         }
     }
