@@ -91,6 +91,9 @@ jobs:
       - name: Apply v13.1 full-screen landscape overlay
         run: python3 scripts/apply_v13_1_landscape_overlay.py
 
+      - name: Apply v13.1.1 compact landscape HUD
+        run: python3 scripts/apply_v13_1_1_compact_landscape_hud.py
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -102,6 +105,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: netheris-gps-v13.1-debug
+          name: netheris-gps-v13.1.1-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
