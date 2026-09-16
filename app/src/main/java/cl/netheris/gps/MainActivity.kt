@@ -35,18 +35,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
@@ -246,7 +242,6 @@ private fun NetherisMap(
     modifier: Modifier = Modifier,
     onMapReady: (MapLibreMap) -> Unit
 ) {
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
     val context = LocalContext.current
     val mapView = remember { MapView(context) }
 
@@ -255,6 +250,8 @@ private fun NetherisMap(
         factory = {
             mapView.apply {
                 onCreate(null)
+                onStart()
+                onResume()
                 getMapAsync { readyMap ->
                     readyMap.setStyle(MAP_STYLE)
                     readyMap.cameraPosition = CameraPosition.Builder()
@@ -267,20 +264,10 @@ private fun NetherisMap(
         }
     )
 
-    DisposableEffect(lifecycle, mapView) {
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_START -> mapView.onStart()
-                Lifecycle.Event.ON_RESUME -> mapView.onResume()
-                Lifecycle.Event.ON_PAUSE -> mapView.onPause()
-                Lifecycle.Event.ON_STOP -> mapView.onStop()
-                Lifecycle.Event.ON_DESTROY -> mapView.onDestroy()
-                else -> Unit
-            }
-        }
-        lifecycle.addObserver(observer)
+    DisposableEffect(mapView) {
         onDispose {
-            lifecycle.removeObserver(observer)
+            mapView.onPause()
+            mapView.onStop()
             mapView.onDestroy()
         }
     }
