@@ -12,8 +12,8 @@ android {
         applicationId = "cl.netheris.gps"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "2.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -50,6 +50,7 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    implementation("androidx.car.app:app:1.7.0")
     implementation("org.maplibre.gl:android-sdk:13.6.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
