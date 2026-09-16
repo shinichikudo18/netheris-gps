@@ -1,0 +1,66 @@
+name: Build Signed Netheris GPS Release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+      NETHERIS_STORE_FILE: ${{ github.workspace }}/netheris-release.jks
+      NETHERIS_STORE_PASSWORD: ${{ secrets.NETHERIS_KEYSTORE_PASSWORD }}
+      NETHERIS_KEY_ALIAS: ${{ secrets.NETHERIS_KEY_ALIAS }}
+      NETHERIS_KEY_PASSWORD: ${{ secrets.NETHERIS_KEY_PASSWORD }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - run: yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses >/dev/null || true
+      - run: /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - run: python3 scripts/apply_v8_avatar.py
+      - run: python3 scripts/apply_v8_ui.py
+      - run: python3 scripts/apply_v8_shell.py
+      - run: python3 scripts/apply_v8_0_1_hotfix.py
+      - run: python3 scripts/apply_v8_1_smart_start.py
+      - run: python3 scripts/apply_v8_2_cleanup_speed.py
+      - run: python3 scripts/apply_v8_2_1_unified_stop.py
+      - run: python3 scripts/apply_v8_2_2_start_stability.py
+      - run: python3 scripts/apply_v9_trip_center.py
+      - run: python3 scripts/apply_v9_1_bottom_sheet_dock.py
+      - run: python3 scripts/apply_v10_smart_camera_arrival.py
+      - run: python3 scripts/apply_v10_0_1_import_fix.py
+      - run: python3 scripts/apply_v10_1_nav_sync_compact_search.py
+      - run: python3 scripts/apply_v10_1_1_forward_ref_fix.py
+      - run: python3 scripts/apply_v10_1_1_visible_nav_controls.py
+      - run: python3 scripts/apply_v11_navigation_core_optimization.py
+      - run: python3 scripts/apply_v12_navigation_experience.py
+      - run: python3 scripts/apply_v12_0_1_visible_controls.py
+      - run: python3 scripts/apply_v13_landscape_intelligent_navigation.py
+      - run: python3 scripts/apply_v13_0_1_start_hotfix.py
+      - run: python3 scripts/apply_v13_1_landscape_overlay.py
+      - run: python3 scripts/apply_v13_1_1_compact_landscape_hud.py
+      - run: python3 scripts/apply_v14_travel_mode.py
+      - run: python3 scripts/apply_v15_netheris_integration.py
+      - name: Restore release keystore
+        run: echo "${{ secrets.NETHERIS_KEYSTORE_B64 }}" | base64 --decode > "$NETHERIS_STORE_FILE"
+      - name: Configure release signing
+        run: python3 scripts/configure_release_signing.py
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+      - name: Build signed release APK and AAB
+        run: gradle :app:assembleRelease :app:bundleRelease --stacktrace
+      - name: Verify APK signature
+        run: "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: netheris-gps-v15.1-release
+          path: |
+            app/build/outputs/apk/release/app-release.apk
+            app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
