@@ -61,6 +61,9 @@ jobs:
       - name: Apply v10 smart camera and arrival
         run: python3 scripts/apply_v10_smart_camera_arrival.py
 
+      - name: Apply v10 import fix
+        run: python3 scripts/apply_v10_0_1_import_fix.py
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
