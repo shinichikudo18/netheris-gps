@@ -12,11 +12,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -63,14 +67,15 @@ private val NetherisColors = darkColorScheme(
     onSurface = Color(0xFFEAF7FF)
 )
 
-private const val MAP_STYLE = "https://demotiles.maplibre.org/style.json"
+// OpenFreeMap: full street map based on OpenStreetMap, no API key required.
+private const val MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty"
 private val Santiago = LatLng(-33.4489, -70.6693)
 
 @Composable
 fun NetherisGpsApp() {
     val context = LocalContext.current
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
-    var status by remember { mutableStateOf("Mapa listo para navegar") }
+    var status by remember { mutableStateOf("Cargando mapa…") }
 
     fun centerOnLocation() {
         val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
@@ -155,71 +160,79 @@ fun NetherisGpsApp() {
                     color = MaterialTheme.colorScheme.primary
                 )
                 Text(
-                    text = "V1 · Santiago · $status",
+                    text = "V1.0.1 · Santiago · $status",
                     color = Color(0xFF9EB8C8),
                     fontSize = 13.sp
                 )
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                NetherisMap(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(500.dp),
-                    onMapReady = { readyMap -> map = readyMap }
-                )
+                        .heightIn(min = 420.dp, max = 760.dp)
+                ) {
+                    NetherisMap(
+                        modifier = Modifier.fillMaxSize(),
+                        onMapReady = { readyMap ->
+                            map = readyMap
+                            status = "Mapa listo"
+                        }
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                Button(
-                    onClick = {
-                        val hasPermission = ContextCompat.checkSelfPermission(
-                            context,
-                            Manifest.permission.ACCESS_FINE_LOCATION
-                        ) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(
-                            context,
-                            Manifest.permission.ACCESS_COARSE_LOCATION
-                        ) == PackageManager.PERMISSION_GRANTED
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            val hasPermission = ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.ACCESS_FINE_LOCATION
+                            ) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                            ) == PackageManager.PERMISSION_GRANTED
 
-                        if (hasPermission) {
-                            centerOnLocation()
-                        } else {
-                            permissionLauncher.launch(
-                                arrayOf(
-                                    Manifest.permission.ACCESS_FINE_LOCATION,
-                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                            if (hasPermission) {
+                                centerOnLocation()
+                            } else {
+                                permissionLauncher.launch(
+                                    arrayOf(
+                                        Manifest.permission.ACCESS_FINE_LOCATION,
+                                        Manifest.permission.ACCESS_COARSE_LOCATION
+                                    )
                                 )
-                            )
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    )
-                ) {
-                    Text("Mi ubicación")
-                }
+                            }
+                        },
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
+                    ) {
+                        Text("Mi ubicación")
+                    }
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Button(
-                    onClick = {
-                        map?.cameraPosition = CameraPosition.Builder()
-                            .target(Santiago)
-                            .zoom(11.5)
-                            .build()
-                        status = "Vista Santiago"
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.secondary,
-                        contentColor = Color(0xFF0A0717)
-                    )
-                ) {
-                    Text("Santiago")
+                    Button(
+                        onClick = {
+                            map?.cameraPosition = CameraPosition.Builder()
+                                .target(Santiago)
+                                .zoom(12.5)
+                                .build()
+                            status = "Vista Santiago"
+                        },
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondary,
+                            contentColor = Color(0xFF0A0717)
+                        )
+                    ) {
+                        Text("Santiago")
+                    }
                 }
             }
         }
@@ -242,12 +255,13 @@ private fun NetherisMap(
                 onStart()
                 onResume()
                 getMapAsync { readyMap ->
-                    readyMap.setStyle(MAP_STYLE)
-                    readyMap.cameraPosition = CameraPosition.Builder()
-                        .target(Santiago)
-                        .zoom(11.5)
-                        .build()
-                    onMapReady(readyMap)
+                    readyMap.setStyle(MAP_STYLE) {
+                        readyMap.cameraPosition = CameraPosition.Builder()
+                            .target(Santiago)
+                            .zoom(12.5)
+                            .build()
+                        onMapReady(readyMap)
+                    }
                 }
             }
         }
