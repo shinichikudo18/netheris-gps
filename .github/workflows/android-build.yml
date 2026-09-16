@@ -85,6 +85,9 @@ jobs:
       - name: Apply v13 landscape and intelligent navigation
         run: python3 scripts/apply_v13_landscape_intelligent_navigation.py
 
+      - name: Apply v13.0.1 reliable start hotfix
+        run: python3 scripts/apply_v13_0_1_start_hotfix.py
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -96,6 +99,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: netheris-gps-v13.0-debug
+          name: netheris-gps-v13.0.1-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
