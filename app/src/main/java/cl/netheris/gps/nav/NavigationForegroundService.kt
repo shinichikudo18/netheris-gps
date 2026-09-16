@@ -17,6 +17,7 @@ import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import cl.netheris.gps.MainActivity
+import cl.netheris.gps.R
 import cl.netheris.gps.core.NavStateStore
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -87,7 +88,7 @@ class NavigationForegroundService : Service() {
     }
 
     private fun buildNotification(title: String, text: String) = NotificationCompat.Builder(this, CHANNEL_ID)
-        .setSmallIcon(android.R.drawable.ic_dialog_map)
+        .setSmallIcon(R.drawable.ic_netheris_notification)
         .setContentTitle(title)
         .setContentText(text)
         .setOngoing(true)
@@ -212,7 +213,7 @@ class NavigationForegroundService : Service() {
         val text = try {
             conn.connectTimeout = 10000
             conn.readTimeout = 15000
-            conn.setRequestProperty("User-Agent", "NetherisGPS/2.5 Android")
+            conn.setRequestProperty("User-Agent", "NetherisGPS/3.0 Android")
             if (conn.responseCode !in 200..299) return null
             conn.inputStream.bufferedReader().use { it.readText() }
         } finally { conn.disconnect() }
