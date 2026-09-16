@@ -79,6 +79,9 @@ jobs:
       - name: Apply v12 smooth navigation experience
         run: python3 scripts/apply_v12_navigation_experience.py
 
+      - name: Apply v12.0.1 visible controls hotfix
+        run: python3 scripts/apply_v12_0_1_visible_controls.py
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -90,6 +93,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: netheris-gps-v12.0-debug
+          name: netheris-gps-v12.0.1-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
